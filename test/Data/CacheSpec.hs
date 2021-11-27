@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module Data.CacheSpec (main, spec) where
 
 import Prelude hiding (lookup)
@@ -18,10 +20,11 @@ spec = do
         c <- liftIO $ defCache Nothing
         _ <- liftIO $ expire defExpiration
         liftIO (size c)                  >>= (`shouldBe` 4)
-        liftIO (lookup' c (fst expired))>>= (`shouldBe` Nothing)
+        liftIO (lookup' c (fst expired)) >>= (`shouldBe` Nothing)
         liftIO (size c)                  >>= (`shouldBe` 4)
         liftIO (lookup  c (fst expired)) >>= (`shouldBe` Nothing)
         liftIO (size c)                  >>= (`shouldBe` 3)
+
     it "should work without a default expiration" $ do
         c <- liftIO $ defCache Nothing
         _ <- liftIO $ expire defExpiration
@@ -30,6 +33,7 @@ spec = do
         liftIO (lookup' c (fst notExpired)  ) >>= (`shouldBe` Just (snd notExpired))
         liftIO (lookup' c (fst expired)     ) >>= (`shouldBe` Nothing)
         liftIO (lookup' c (fst autoExpired) ) >>= (`shouldBe` Just (snd autoExpired))
+
     it "should work with a default expiration" $ do
         c <- liftIO $ defCache (Just defExpiration)
         _ <- liftIO $ expire defExpiration
@@ -37,6 +41,7 @@ spec = do
         liftIO (lookup  c (fst ok)          ) >>= (`shouldBe` Just (snd ok))
         liftIO (lookup' c (fst expired)     ) >>= (`shouldBe` Nothing)
         liftIO (lookup' c (fst autoExpired) ) >>= (`shouldBe` Nothing)
+
     it "should delete items" $ do
         c <- liftIO $ defCache Nothing
         _ <- liftIO $ expire defExpiration
@@ -48,25 +53,30 @@ spec = do
         liftIO (lookup' c (fst notExpired)  ) >>= (`shouldBe` Just (snd notExpired))
         liftIO (lookup' c (fst expired)     ) >>= (`shouldBe` Nothing)
         liftIO (lookup' c (fst autoExpired) ) >>= (`shouldBe` Just (snd autoExpired))
+
     it "should filter items" $ do
         c <- liftIO $ defCache Nothing
         _ <- liftIO $ expire defExpiration
         liftIO (size c) >>= (`shouldBe` 4)
         _ <- liftIO $ filterWithKey (\r _ -> r /= fst ok) c
         liftIO (size c) >>= (`shouldBe` 3)
+
     it "should copy" $ do
         c  <- liftIO $ defCache Nothing
         c' <- liftIO $ copyCache c
         _  <- liftIO $ delete c (fst ok)
         liftIO (lookup c  (fst ok)) >>= (`shouldBe` Nothing)
         liftIO (lookup c' (fst ok)) >>= (`shouldBe` Just (snd ok))
-    it "should set default expiratio time" $ do
+
+    it "should set default expiration time" $ do
         c <- liftIO $ defCache Nothing
         defaultExpiration (setDefaultExpiration c $ Just 4) `shouldBe` Just 4
+
     it "should return keys" $ do
         c <- liftIO $ defCache Nothing
         liftIO (keys c) >>= (`shouldContain` [(fst ok)])
         liftIO (keys c) >>= (`shouldContain` [(fst notExpired)])
+
     it "should purge expired keys" $ do
         c <- liftIO $ defCache Nothing
         _ <- liftIO $ expire defExpiration
@@ -75,6 +85,7 @@ spec = do
         liftIO (size c) >>= (`shouldBe` 3)
         _ <- liftIO $ purge c
         liftIO (size c) >>= (`shouldBe` 0)
+
     it "should work with actions" $ do
         c <- liftIO $ defCache Nothing
         _ <- liftIO $ expire defExpiration
@@ -82,6 +93,13 @@ spec = do
         liftIO (fetchWithCache c (fst expired) (const $ return 10))          >>= (`shouldBe` 10)
         liftIO (fetchWithCache c (fst action) (const $ return (snd action))) >>= (`shouldBe` (snd action))
         liftIO (lookup' c (fst action) )                                     >>= (`shouldBe` Just (snd action))
+
+    it "should purge automatically with background thread" $ do
+        c <- liftIO $ defCache (Just (TimeSpec 1 0))
+        liftIO (lookup' c (fst autoExpired) ) >>= (`shouldBe` Just (snd autoExpired))
+
+        threadDelay 3_000_000
+        liftIO (lookup' c (fst autoExpired) ) >>= (`shouldBe` Nothing)
 
 defExpiration :: TimeSpec
 defExpiration = 1000000
@@ -118,4 +136,3 @@ defCache t = do
     _ <- uncurry (insert  c)                      autoExpired
     _ <- uncurry (insert' c $ Just defNotExpired) notExpired
     return c
-    

@@ -24,7 +24,8 @@ library
   hs-source-dirs:      src
   exposed-modules:     Data.Cache
                      , Data.Cache.Internal
-  build-depends:       base >= 4.8 && < 5
+  build-depends:       async > 2 && < 3
+                     , base >= 4.8 && < 5
                      , clock >= 0.7 && < 0.9
                      , hashable >= 1.0.1.1
                      , stm >= 2.2 && < 3

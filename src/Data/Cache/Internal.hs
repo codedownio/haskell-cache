@@ -17,10 +17,11 @@ module Data.Cache.Internal (
   , nowSTM
 ) where
 
+import Control.Concurrent.Async
 import Control.Concurrent.STM
+import qualified Data.HashMap.Strict as HM
 import GHC.Conc (unsafeIOToSTM)
 import System.Clock
-import qualified Data.HashMap.Strict as HM
 
 -- | The cache with keys of type @k@ and values of type @v@.
 --
@@ -31,6 +32,8 @@ data Cache k v = Cache {
     --
     -- See 'newCache' for more information on the default expiration value.
   , defaultExpiration :: Maybe TimeSpec
+    -- | Optional thread to purge cache entries periodically
+  , purgeThread :: Maybe (Async ())
 }
 
 -- | A container data type holding a cache item.

@@ -55,10 +55,12 @@ module Data.Cache (
 
 import Prelude hiding (lookup)
 
+import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
-import Control.Monad.Trans.Maybe
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Maybe
 import Data.Cache.Internal
 import qualified Data.HashMap.Strict as HM
 import Data.Hashable
@@ -86,16 +88,28 @@ isExpired t i = fromMaybe False (itemExpiration i >>= f t)
 --
 -- If the specified default expiration value is `Nothing`, items inserted
 -- by 'insert' will never expire.
-newCache :: Maybe TimeSpec -> IO (Cache k v)
-newCache d = do
+newCache :: (Eq k, Hashable k) => Maybe TimeSpec -> IO (Cache k v)
+newCache d = newCache' d ((\x -> fromIntegral $ toNanoSecs x `div` 1000) <$> d)
+
+newCache' :: (Eq k, Hashable k) => Maybe TimeSpec -> Maybe Int -> IO (Cache k v)
+newCache' d maybeSleepTime = do
+
     m <- newTVarIO HM.empty
-    return Cache { container = m, defaultExpiration = d }
+
+    pt <- case maybeSleepTime of
+      Nothing -> return Nothing
+      Just sleepTime -> do
+        (Just <$>) $ async $ forever $ do
+          threadDelay (fromIntegral sleepTime)
+          purgeExpired (Cache { container = m, defaultExpiration = d, purgeThread = Nothing })
+
+    return Cache { container = m, defaultExpiration = d, purgeThread = pt }
 
 -- | STM variant of 'newCache'
 newCacheSTM :: Maybe TimeSpec -> STM (Cache k v)
 newCacheSTM d = do
     m <- newTVar HM.empty
-    return Cache { container = m, defaultExpiration = d }
+    return Cache { container = m, defaultExpiration = d, purgeThread = Nothing }
 
 copyCacheSTM :: Cache k v -> STM (Cache k v)
 copyCacheSTM c = do
@@ -257,7 +271,7 @@ toList c = atomically $ do
   m <- readTVar $ container c
   let l = HM.toList m
   return $ map (\(k, (CacheItem v i)) -> (k, v, i)) l
-  
+
 -- $use
 --
 -- All operations are automically executed in the IO monad. The
